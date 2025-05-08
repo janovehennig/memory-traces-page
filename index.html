@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <title>Memory Traces v27</title>
+    <title>Memory Traces v24</title>
     <style>
         body {
             margin: 0;
@@ -28,42 +28,116 @@
             user-select: none;
         }
 
+        /* Status indicator style */
+        #status {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background-color: rgba(0,0,0,0.5);
+            padding: 5px 10px;
+            border-radius: 4px;
+            font-size: 12px;
+            z-index: 1000;
+        }
     </style>
 
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, user-scalable=no, initial-scale=1">
-    <meta itemprop="name" content="Memory Traces v27">
+    <meta itemprop="name" content="Memory Traces v24">
     <meta itemprop="description" content="made with cables">
     <meta itemprop="image" content="screenshot.png">
     <meta name="description" content="made with cables"/>
 
+    <!-- Import map for LUKSO UP Provider -->
+    <script type="importmap">
+        { "imports": { "@lukso/up-provider": "https://cdn.jsdelivr.net/npm/@lukso/up-provider@0.3.5/dist/index.mjs" } }
+    </script>
 </head>
 <body>
     <canvas id="glcanvas" width="100vw" height="100vh" tabindex="1"></canvas>
-
+    <div id="status">Loading...</div>
     
     <script type="text/javascript" src="js/patch.js" async></script>
     
+    <script type="module">
+        import { createClientUPProvider } from '@lukso/up-provider';
+
+        // Global variable to store the UP address
+        window.upAddress = null;
+        
+        // Create the LUKSO UP provider
+        const provider = createClientUPProvider();
+        const status = document.getElementById('status');
+
+        async function initWallet() {
+            try {
+                // Initialize chain & accounts
+                const chainId = await provider.request({ method: 'eth_chainId' });
+                const accounts = await provider.request({ method: 'eth_accounts' });
+
+                if (accounts.length) {
+                    // Store the UP address
+                    window.upAddress = accounts[0];
+                    status.textContent = `Connected: ${window.upAddress.substring(0, 6)}...${window.upAddress.substring(window.upAddress.length - 4)}`;
+                    
+                    // Update the patch if it's already loaded
+                    updatePatchAddress();
+                } else {
+                    status.textContent = 'Waiting for wallet...';
+                }
+            } catch (error) {
+                console.error("Error initializing wallet:", error);
+                status.textContent = 'Wallet connection error';
+            }
+        }
+
+        function updatePatchAddress() {
+            // Check if patch is initialized and address variable exists
+            if (window.upAddress && CABLES.patch) {
+                // Look for the variable with the name "Address" (without the hash)
+                const addressVar = CABLES.patch.getVar("Address");
+                if (addressVar) {
+                    // Update the Address variable
+                    addressVar.set(window.upAddress);
+                    console.log("Updated patch with UP address:", window.upAddress);
+                } else {
+                    console.log("Variable 'Address' not found in patch");
+                }
+            }
+        }
+
+        // Set up event listeners for wallet changes
+        provider.on('accountsChanged', initWallet);
+        provider.on('chainChanged', initWallet);
+        provider.on('contextAccountsChanged', initWallet);
+
+        // Initialize wallet
+        initWallet();
+
+        // Make function available globally
+        window.updatePatchAddress = updatePatchAddress;
+    </script>
 
     <script type="text/javascript">
-
-        function showError(initiator,...args)
-        {
+        function showError(initiator,...args) {
             CABLES.logErrorConsole("[" + initiator + "]", ...args);
         }
 
-        function patchInitialized(patch)
-        {
-            // You can now access the patch object (patch), register variable watchers and so on
+        function patchInitialized(patch) {
+            // Patch object is accessible, attempt to update the address
+            if (window.updatePatchAddress) {
+                window.updatePatchAddress();
+            }
         }
 
-        function patchFinishedLoading(patch)
-        {
-            // The patch is ready now, all assets have been loaded
+        function patchFinishedLoading(patch) {
+            // Patch is fully loaded, ensure address is set
+            if (window.updatePatchAddress) {
+                window.updatePatchAddress();
+            }
         }
 
-        document.addEventListener("CABLES.jsLoaded", function (event)
-        {
+        document.addEventListener("CABLES.jsLoaded", function (event) {
             CABLES.patch = new CABLES.Patch({
                 patch: CABLES.exportedPatch,
                 "prefixAssetPath": "",
