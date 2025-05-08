@@ -1,6 +1,6 @@
 ## Patch Variables:
 
-* __Address__ ```String```
+* __Address__ ```String``` (default Value: `New String`)
 * __Asset amount__ ```Number```
 * __Assets List__ ```Object```
 * __Colors Array__ ```Array```
